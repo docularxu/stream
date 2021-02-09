@@ -47,6 +47,7 @@
 # include <limits.h>
 # include <sys/time.h>
 
+# include <fixmath.h>
 /*-----------------------------------------------------------------------
  * INSTRUCTIONS:
  *
@@ -173,7 +174,8 @@
 # endif
 
 #ifndef STREAM_TYPE
-#define STREAM_TYPE double
+// #define STREAM_TYPE double
+#define STREAM_TYPE fix16_t
 #endif
 
 static STREAM_TYPE	a[STREAM_ARRAY_SIZE+OFFSET],
@@ -266,9 +268,9 @@ main()
     /* Get initial value for system clock. */
 #pragma omp parallel for
     for (j=0; j<STREAM_ARRAY_SIZE; j++) {
-	    a[j] = 1.0;
-	    b[j] = 2.0;
-	    c[j] = 0.0;
+	    a[j] = fix16_one;
+	    b[j] = fix16_two;
+	    c[j] = 0;
 	}
 
     printf(HLINE);
@@ -285,7 +287,7 @@ main()
     t = mysecond();
 #pragma omp parallel for
     for (j = 0; j < STREAM_ARRAY_SIZE; j++)
-		a[j] = 2.0E0 * a[j];
+		a[j] = fix16_mul(fix16_two, a[j]);
     t = 1.0E6 * (mysecond() - t);
 
     printf("Each test below will take on the order"
@@ -303,7 +305,7 @@ main()
     
     /*	--- MAIN LOOP --- repeat test cases NTIMES times --- */
 
-    scalar = 3.0;
+    scalar = fix16_three;
     for (k=0; k<NTIMES; k++)
 	{
 	times[0][k] = mysecond();
@@ -322,7 +324,7 @@ main()
 #else
 #pragma omp parallel for
 	for (j=0; j<STREAM_ARRAY_SIZE; j++)
-	    b[j] = scalar*c[j];
+               b[j] = fix16_mul(scalar, c[j]);
 #endif
 	times[1][k] = mysecond() - times[1][k];
 	
@@ -332,7 +334,7 @@ main()
 #else
 #pragma omp parallel for
 	for (j=0; j<STREAM_ARRAY_SIZE; j++)
-	    c[j] = a[j]+b[j];
+	    c[j] = fix16_add(a[j], b[j]);
 #endif
 	times[2][k] = mysecond() - times[2][k];
 	
@@ -342,7 +344,7 @@ main()
 #else
 #pragma omp parallel for
 	for (j=0; j<STREAM_ARRAY_SIZE; j++)
-	    a[j] = b[j]+scalar*c[j];
+	    a[j] = fix16_add(b[j], fix16_mul(scalar, c[j]));
 #endif
 	times[3][k] = mysecond() - times[3][k];
 	}
@@ -432,9 +434,9 @@ double mysecond()
 #endif
 void checkSTREAMresults ()
 {
-	STREAM_TYPE aj,bj,cj,scalar;
-	STREAM_TYPE aSumErr,bSumErr,cSumErr;
-	STREAM_TYPE aAvgErr,bAvgErr,cAvgErr;
+	float aj,bj,cj,scalar;
+	float aSumErr,bSumErr,cSumErr;
+	float aAvgErr,bAvgErr,cAvgErr;
 	double epsilon;
 	ssize_t	j;
 	int	k,ierr,err;
@@ -460,9 +462,9 @@ void checkSTREAMresults ()
 	bSumErr = 0.0;
 	cSumErr = 0.0;
 	for (j=0; j<STREAM_ARRAY_SIZE; j++) {
-		aSumErr += abs(a[j] - aj);
-		bSumErr += abs(b[j] - bj);
-		cSumErr += abs(c[j] - cj);
+		aSumErr += abs(fix16_to_dbl(a[j]) - aj);
+		bSumErr += abs(fix16_to_dbl(b[j]) - bj);
+		cSumErr += abs(fix16_to_dbl(c[j]) - cj);
 		// if (j == 417) printf("Index 417: c[j]: %f, cj: %f\n",c[j],cj);	// MCCALPIN
 	}
 	aAvgErr = aSumErr / (STREAM_TYPE) STREAM_ARRAY_SIZE;
@@ -487,12 +489,12 @@ void checkSTREAMresults ()
 		printf ("     Expected Value: %e, AvgAbsErr: %e, AvgRelAbsErr: %e\n",aj,aAvgErr,abs(aAvgErr)/aj);
 		ierr = 0;
 		for (j=0; j<STREAM_ARRAY_SIZE; j++) {
-			if (abs(a[j]/aj-1.0) > epsilon) {
+			if (abs(fix16_to_dbl(a[j])/aj-1.0) > epsilon) {
 				ierr++;
 #ifdef VERBOSE
 				if (ierr < 10) {
 					printf("         array a: index: %ld, expected: %e, observed: %e, relative error: %e\n",
-						j,aj,a[j],abs((aj-a[j])/aAvgErr));
+						j,aj,fix16_to_dbl(a[j]),abs((aj-fix16_to_dbl(a[j]))/aAvgErr));
 				}
 #endif
 			}
@@ -506,12 +508,12 @@ void checkSTREAMresults ()
 		printf ("     AvgRelAbsErr > Epsilon (%e)\n",epsilon);
 		ierr = 0;
 		for (j=0; j<STREAM_ARRAY_SIZE; j++) {
-			if (abs(b[j]/bj-1.0) > epsilon) {
+			if (abs(fix16_to_dbl(b[j])/bj-1.0) > epsilon) {
 				ierr++;
 #ifdef VERBOSE
 				if (ierr < 10) {
 					printf("         array b: index: %ld, expected: %e, observed: %e, relative error: %e\n",
-						j,bj,b[j],abs((bj-b[j])/bAvgErr));
+						j,bj,fix16_to_dbl(b[j]),abs((bj-fix16_to_dbl(b[j]))/bAvgErr));
 				}
 #endif
 			}
@@ -525,12 +527,12 @@ void checkSTREAMresults ()
 		printf ("     AvgRelAbsErr > Epsilon (%e)\n",epsilon);
 		ierr = 0;
 		for (j=0; j<STREAM_ARRAY_SIZE; j++) {
-			if (abs(c[j]/cj-1.0) > epsilon) {
+			if (abs(fix16_to_dbl(c[j])/cj-1.0) > epsilon) {
 				ierr++;
 #ifdef VERBOSE
 				if (ierr < 10) {
 					printf("         array c: index: %ld, expected: %e, observed: %e, relative error: %e\n",
-						j,cj,c[j],abs((cj-c[j])/cAvgErr));
+						j,cj,fix16_to_dbl(c[j]),abs((cj-fix16_to_dbl(c[j]))/cAvgErr));
 				}
 #endif
 			}
@@ -543,7 +545,7 @@ void checkSTREAMresults ()
 #ifdef VERBOSE
 	printf ("Results Validation Verbose Results: \n");
 	printf ("    Expected a(1), b(1), c(1): %f %f %f \n",aj,bj,cj);
-	printf ("    Observed a(1), b(1), c(1): %f %f %f \n",a[1],b[1],c[1]);
+	printf ("    Observed a(1), b(1), c(1): %f %f %f \n",fix16_to_dbl(a[1]),fix16_to_dbl(b[1]),fix16_to_dbl(c[1]));
 	printf ("    Rel Errors on a, b, c:     %e %e %e \n",abs(aAvgErr/aj),abs(bAvgErr/bj),abs(cAvgErr/cj));
 #endif
 }
